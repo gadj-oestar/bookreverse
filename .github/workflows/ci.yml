@@ -1,28 +1,25 @@
-name: CI
+name: Symfony CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   tests:
+    name: Run tests
     runs-on: ubuntu-latest
+
     services:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: bookreserve_db
-          MYSQL_USER: book_user
-          MYSQL_PASSWORD: bookpass
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: symfony_exercise
         ports:
           - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --silent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-
-    env:
-      DATABASE_URL: mysql://book_user:bookpass@127.0.0.1:3306/bookreserve_db?serverVersion=8.0
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
       - uses: actions/checkout@v3
@@ -30,26 +27,28 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
-          extensions: mbstring, pdo_mysql, intl
+          php-version: 8.2
+          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_mysql
           coverage: none
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-suggest --no-interaction
+        run: composer install --prefer-dist --no-progress --no-suggest
 
-      - name: Wait for MySQL to be ready
-        run: |
-          for i in {30..0}; do
-            if mysqladmin ping -h 127.0.0.1 -u book_user -pbookpass --silent; then
-              break
-            fi
-            echo 'Waiting for database connection...'
-            sleep 1
-          done
+      - name: Copy .env
+        run: cp .env .env.test
 
-      - name: Create database schema
-        run: |
-          php bin/console doctrine:migrations:migrate --no-interaction
+      - name: Update DATABASE_URL env var
+        run: sed -i 's/DATABASE_URL=.*/DATABASE_URL="mysql:\/\/root:password@127.0.0.1:3306\/symfony_exercise?serverVersion=8.0"/' .env.test
 
-      - name: Run tests
-        run: php bin/phpunit
+      - name: Create database
+        run: php bin/console doctrine:database:create --env=test
+
+      - name: Run migrations
+        run: php bin/console doctrine:migrations:migrate --env=test -n
+
+      - name: Run PHPUnit tests
+        run: ./vendor/bin/phpunit
+        env:
+          KERNEL_CLASS: App\Kernel
+          APP_ENV: test
+ 
