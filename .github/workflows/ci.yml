@@ -1,0 +1,55 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: bookreserve_db
+          MYSQL_USER: book_user
+          MYSQL_PASSWORD: bookpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    env:
+      DATABASE_URL: mysql://book_user:bookpass@127.0.0.1:3306/bookreserve_db?serverVersion=8.0
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, pdo_mysql, intl
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-suggest --no-interaction
+
+      - name: Wait for MySQL to be ready
+        run: |
+          for i in {30..0}; do
+            if mysqladmin ping -h 127.0.0.1 -u book_user -pbookpass --silent; then
+              break
+            fi
+            echo 'Waiting for database connection...'
+            sleep 1
+          done
+
+      - name: Create database schema
+        run: |
+          php bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Run tests
+        run: php bin/phpunit
