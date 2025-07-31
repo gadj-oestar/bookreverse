@@ -23,7 +23,6 @@
         <env name="APP_SECRET" value="$ecretf0rt3st" />
         <env name="KERNEL_CLASS" value="App\Kernel" />
         <env name="SYMFONY_DOTENV_PATH" value=".env.test" />
-        <env name="DATABASE_URL" value="mysql://root:@127.0.0.1:3306/bookreserve_db?serverVersion=8.0" />
     </php>
 
     <testsuites>
